@@ -111,98 +111,100 @@ int main(void)
   HR = system(iwlist_cmd);
   if(HR)
   {
-    // that didn't work...
+    // that didn't work... emit an error message. we'll exit at end after possible cleanup
     cerr << "problem issuing the iwlist call. exiting." << endl;
-    return(HR); 
   }
-  
-  // open up our datafile and parse
-  ifstream datafile(iwlist_filename);
-  if (datafile.is_open())
+  else
   {
-      bool in_cell = false;
-      bool got_quality = false;
-      bool got_encryption = false;
-      bool got_ssid = false;
-      string quality = "";
-      string encrypted = "";
-      string ssid = "";
-      string line;
+    // looks like the iwlist command worked. open up our datafile and parse
+    ifstream datafile(iwlist_filename);
+    if (datafile.is_open())
+    {
+        bool in_cell = false;
+        bool got_quality = false;
+        bool got_encryption = false;
+        bool got_ssid = false;
+        string quality = "";
+        string encrypted = "";
+        string ssid = "";
+        string line;
 
-      while(getline(datafile, line))
-      {
-          if (in_cell && got_quality && got_encryption && got_ssid)
-          {
-            // done with this cell. save the data and reset unless the SSID is ""
-            if (!ssid.empty())
+        while(getline(datafile, line))
+        {
+            if (in_cell && got_quality && got_encryption && got_ssid)
             {
-              string row = quote + ssid + quote + comma + quality + comma + encrypted + comma + (ssid==current_ssid?"y":"n");
-              ssid_list.push_back(row);
+              // done with this cell. save the data and reset unless the SSID is ""
+              if (!ssid.empty())
+              {
+                string row = quote + ssid + quote + comma + quality + comma + encrypted + comma + (ssid==current_ssid?"y":"n");
+                ssid_list.push_back(row);
+              }
+              // reset flags
+              in_cell = got_quality = got_encryption = got_ssid = false;
             }
-            // reset flags
-            in_cell = got_quality = got_encryption = got_ssid = false;
-          }
 
-          // process a line.
-          string data = trim(line);
-          if (stringStartsWith(data, "Cell "))
-          {
-            in_cell = true;
-            /*
-            cout << "CELL       " 
-                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-                 << endl; // << data << endl;
-            */
-            continue;
-          }
-          if (stringStartsWith(data, "Quality="))
-          {
-            got_quality = true;
-            quality = getQuality(data);
-            /*
-            cout << "QUALITY    " 
-                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-                 << endl << data << endl;
-            cout << "Quality: " << quality << "%" << endl;
-            */
-            continue;
-          }
-          if (stringStartsWith(data, "Encryption key:"))
-          {
-            got_encryption = true;
-            encrypted = hasEncryption(data);
-            /*
-            cout << "ENCRYPTION " 
-                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-                 << endl << data << endl;
-            cout << "Encrypted: " << encrypted << endl;
-            */
-            continue;
-          }
-          if (stringStartsWith(data, "ESSID:"))
-          {
-            got_ssid = true;
-            ssid = getSSID(data);
-            /*
-            cout << "SSID       " 
-                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-                 << endl << data << endl;
-            cout << "SSID:" << encrypted << endl;
-            */
-            continue;
-          }
-      }
-      for (auto row : ssid_list)
-      {
-        cout << row << endl;
-      }
-  }
-  else {
-      cerr << "Couldn't open config file for reading.\n";
+            // process a line.
+            string data = trim(line);
+            if (stringStartsWith(data, "Cell "))
+            {
+              in_cell = true;
+              /*
+              cout << "CELL       " 
+                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                  << endl; // << data << endl;
+              */
+              continue;
+            }
+            if (stringStartsWith(data, "Quality="))
+            {
+              got_quality = true;
+              quality = getQuality(data);
+              /*
+              cout << "QUALITY    " 
+                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                  << endl << data << endl;
+              cout << "Quality: " << quality << "%" << endl;
+              */
+              continue;
+            }
+            if (stringStartsWith(data, "Encryption key:"))
+            {
+              got_encryption = true;
+              encrypted = hasEncryption(data);
+              /*
+              cout << "ENCRYPTION " 
+                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                  << endl << data << endl;
+              cout << "Encrypted: " << encrypted << endl;
+              */
+              continue;
+            }
+            if (stringStartsWith(data, "ESSID:"))
+            {
+              got_ssid = true;
+              ssid = getSSID(data);
+              /*
+              cout << "SSID       " 
+                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                  << endl << data << endl;
+              cout << "SSID:" << encrypted << endl;
+              */
+              continue;
+            }
+        }
+        for (auto row : ssid_list)
+        {
+          cout << row << endl;
+        }
+    }
+    else {
+        cerr << "Couldn't open config file for reading.\n";
+        HR=2;
+    }
   }
   // cleanup
   remove(iwlist_filename);
-  exit(HR);
+  return(HR);
 }
 
 
