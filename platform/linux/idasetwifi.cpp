@@ -96,13 +96,15 @@ int main(int argc, char *argv[])
             << "\tpsk=\"" << password.data() << "\"" << endl << "}" << endl;
   conf_file.close();
 
-  // now move the old config file to a backup and swap in the new one
-  HR = rename(conf_name.c_str(), conf_backup_name.c_str());
+  if(access(conf_name.c_str(), F_OK) == 0) {
+    // now move the old config file to a backup and swap in the new one
+    HR = rename(conf_name.c_str(), conf_backup_name.c_str());
 
-  if(HR)
-  {
-    cerr << "error backing up old config file: " << conf_name << " to: " << conf_backup_name << endl;
-    return(HR); 
+    if(HR)
+    {
+      cerr << "error backing up old config file: " << conf_name << " to: " << conf_backup_name << endl;
+      return(HR);
+    }
   }
 
   HR = rename(conf_swap_name.c_str(), conf_name.c_str());
@@ -111,7 +113,7 @@ int main(int argc, char *argv[])
   {
     cerr << "error swapping new config file: " << conf_swap_name << " with: " << conf_name << endl
          << "wifi should be unaffected." << endl;
-    return(HR); 
+    return(HR);
   }
 
 
