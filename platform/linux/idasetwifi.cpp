@@ -100,9 +100,12 @@ int main(int argc, char *argv[])
   // create new wpa_supplicant.conf file
   ofstream conf_file(conf_swap_name, ofstream::out);
   conf_file << "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev" << endl
-            << "update_config=1" << endl << "network={" << endl
+            << "update_config=1" << endl
+            << "country=US" << endl << endl
+            << "network={" << endl
             << "\tssid=" << (ssidIsAscii ? "\"" : "") << ssidAscii << (ssidIsAscii ? "\"" : "") << endl
-            << "\tpsk=" << (passwordIsAscii ? "\"" : "") << passwordAscii << (passwordIsAscii ? "\"" : "") << endl << "}" << endl;
+            << "\tpsk=" << (passwordIsAscii ? "\"" : "") << passwordAscii << (passwordIsAscii ? "\"" : "") << endl
+            << "}" << endl;
   conf_file.close();
 
   if(access(conf_name.c_str(), F_OK) == 0) {
