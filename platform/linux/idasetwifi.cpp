@@ -7,16 +7,21 @@
 #include <cstring>
 #include <vector>
 
+#include "Types.h"
+#include "HexConverter.h"
+
 using namespace std;
+using namespace Sequent;
 
 uint8_t ReadByte(FILE *stream);
 void ReadExact(uint8_t *buffer , size_t count, FILE *stream);
+string BinaryToAsciiOrHex(uint8_vector &binary, bool &isAscii);
 
 int main(int argc, char *argv[])
 {
   // filenames and stuff
-  // string prefix("/etc/wpa_supplicant/");
-  const string prefix("/tmp/");
+  string prefix("/etc/wpa_supplicant/");
+//  const string prefix("/tmp/");
   const string conf_name = prefix + "wpa_supplicant.conf";
   const string conf_swap_name = prefix + "wpa_supplicant.swap";
   const string conf_backup_name = prefix + "wpa_supplicant.conf." + to_string(getpid());
@@ -41,7 +46,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  vector<uint8_t> ssid(byteCount);
+  uint8_vector ssid(byteCount);
 
   try
   {
@@ -65,14 +70,13 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-
   if (byteCount > 100)
   {
     cerr << "Password byte count invalid" << endl;
     return 1;
   }
 
-  vector<uint8_t> password(byteCount);
+  uint8_vector password(byteCount);
 
   try
   {
@@ -85,6 +89,11 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  bool ssidIsAscii;
+  string ssidAscii = BinaryToAsciiOrHex(ssid, ssidIsAscii);
+  bool passwordIsAscii;
+  string passwordAscii = BinaryToAsciiOrHex(password, passwordIsAscii);
+
   // let's be root
   setuid(0);
 
@@ -92,8 +101,8 @@ int main(int argc, char *argv[])
   ofstream conf_file(conf_swap_name, ofstream::out);
   conf_file << "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev" << endl
             << "update_config=1" << endl << "network={" << endl
-            << "\tssid=\"" << ssid.data() << "\"" << endl
-            << "\tpsk=\"" << password.data() << "\"" << endl << "}" << endl;
+            << "\tssid=" << (ssidIsAscii ? "\"" : "") << ssidAscii << (ssidIsAscii ? "\"" : "") << endl
+            << "\tpsk=" << (passwordIsAscii ? "\"" : "") << passwordAscii << (passwordIsAscii ? "\"" : "") << endl << "}" << endl;
   conf_file.close();
 
   if(access(conf_name.c_str(), F_OK) == 0) {
@@ -115,26 +124,6 @@ int main(int argc, char *argv[])
          << "wifi should be unaffected." << endl;
     return(HR);
   }
-
-
-
-
-
-
-
-
-  return 0;
-
-
-
-
-
-
-
-
-
-
-
 
   // should be ready to go... load it into the system
   HR = system(wpi_command.c_str());
@@ -194,5 +183,32 @@ void ReadExact(uint8_t *buffer, size_t count, FILE *stream)
 
     count -= bytesRead;
     offset += bytesRead;
+  }
+}
+
+string BinaryToAsciiOrHex(uint8_vector &binary, bool &isAscii)
+{
+  string string;
+
+  isAscii = true;
+
+  for (uint8_vector::const_iterator it = binary.cbegin(); it != binary.cend(); ++it)
+  {
+    if (*it < 0x20 || *it > 126)
+    {
+      isAscii = false;
+      break;
+    }
+
+    string += (char) *it;
+  }
+
+  if (isAscii)
+  {
+    return string;
+  }
+  else
+  {
+    return HexConverter::ByteArrayToHexString(binary);
   }
 }
