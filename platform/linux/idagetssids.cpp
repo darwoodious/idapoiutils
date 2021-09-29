@@ -1,22 +1,18 @@
+#include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <iostream>
+#include <fstream>
 #include <string>
+#include <cstring>
 #include <algorithm>
 #include <list>
 #include <cmath>
-#include <memory>
-#include <sstream>
-
-#include "AsciiEncoder.h"
-#include "Pipe.h"
-#include "Process.h"
 
 using namespace std;
-using namespace Sequent;
 
 // some helper functions
-const string whitespace = " \t\r\n";
+const string whitespace = " \t";
 const string quote = "\"";
 const string comma = ",";
 
@@ -109,123 +105,136 @@ string getSSID(const string& str)
 
 int main(void)
 {
-  uint8_vector standardOut;
-  unique_ptr<Process> process;
+  // filenames and stuff
+  char iwlist_filename[32];
+  char iwlist_cmd[128];
+  char iwgetid_filename[32];
+  char iwgetid_cmd[128];
+  sprintf(iwlist_filename, "/tmp/iw.%i", getpid());
+  sprintf(iwlist_cmd, "/usr/sbin/iw wlan0 scan > %s", iwlist_filename);
+  sprintf(iwgetid_filename, "/tmp/iwgetid.%i", getpid());
+  sprintf(iwgetid_cmd, "/usr/sbin/iwgetid --raw > %s", iwgetid_filename);
+
+  int HR=0;
   string current_ssid;
   list<string> ssid_list;
 
   // let's be root
   setuid(0);
 
-  process = Process::Execute("/usr/sbin/iwgetid", Redirect::StandardOut, "iwgetid", "--raw");
-
-  process->ExchangeStandardIo(nullptr, &standardOut, nullptr);
-  process->Wait();
-
-  if (process->GetExitStatus())
+  // first let's see if we're already connected to a network
+  HR = system(iwgetid_cmd);
+  if(HR)
   {
     // didn't work but we'll just set the current SSID to "" and it won't match
+    current_ssid = "";
   }
   else
   {
-    current_ssid = trim(AsciiEncoder::Decode(standardOut));
+    ifstream ssidfile(iwgetid_filename);
+    if (ssidfile.is_open())
+    {
+      getline(ssidfile, current_ssid);
+      ssidfile.close();
+      remove(iwgetid_filename);
+    }
   }
 
-  standardOut.clear();
-
-  // attempt to get the content from iw
-  process = Process::Execute("/usr/sbin/iw", Redirect::StandardOut, "iw", "wlan0", "scan");
-
-  process->ExchangeStandardIo(nullptr, &standardOut, nullptr);
-  process->Wait();
-
-  if (process->GetExitStatus())
+  // attempt to get the content from iwlist
+  HR = system(iwlist_cmd);
+  if(HR)
   {
     // that didn't work...
     cerr << "problem issuing the iwlist call. exiting." << endl;
-    return process->GetExitStatus();
+    return(HR);
   }
 
-  string standardOutAscii = AsciiEncoder::Decode(standardOut);
-  istringstream standardOutStream(standardOutAscii);
-
-  bool in_cell = false;
-  bool got_quality = false;
-  bool got_encryption = false;
-  bool got_ssid = false;
-  string quality = "";
-  string encrypted = "";
-  string ssid = "";
-  string line;
-
-  while(getline(standardOutStream, line))
+  // open up our datafile and parse
+  ifstream datafile(iwlist_filename);
+  if (datafile.is_open())
   {
-    if (in_cell && got_quality && got_encryption && got_ssid)
-    {
-      // done with this cell. save the data and reset unless the SSID is ""
-      if (!ssid.empty())
-      {
-        string row = quote + ssid + quote + comma + quality + comma + encrypted + comma + (ssid==current_ssid?"y":"n");
-        ssid_list.push_back(row);
-      }
-      // reset flags
-        in_cell = got_quality = got_encryption = got_ssid = false;
-      }
+      bool in_cell = false;
+      bool got_quality = false;
+      bool got_encryption = false;
+      bool got_ssid = false;
+      string quality = "";
+      string encrypted = "";
+      string ssid = "";
+      string line;
 
-      // process a line.
-      string data = trim(line);
-      if (stringStartsWith(data, "BSS "))
+      while(getline(datafile, line))
       {
-        in_cell = true;
-        /*
-        cout << "CELL       "
-             << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-             << endl; // << data << endl;
-        */
-        continue;
+          if (in_cell && got_quality && got_encryption && got_ssid)
+          {
+            // done with this cell. save the data and reset unless the SSID is ""
+            if (!ssid.empty())
+            {
+              string row = quote + ssid + quote + comma + quality + comma + encrypted + comma + (ssid==current_ssid?"y":"n");
+              ssid_list.push_back(row);
+            }
+            // reset flags
+            in_cell = got_quality = got_encryption = got_ssid = false;
+          }
+
+          // process a line.
+          string data = trim(line);
+          if (stringStartsWith(data, "BSS "))
+          {
+            in_cell = true;
+            /*
+            cout << "CELL       "
+                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                 << endl; // << data << endl;
+            */
+            continue;
+          }
+          if (stringStartsWith(data, "signal: "))
+          {
+            got_quality = true;
+            quality = getSignalStrength(removeFirst(data, 8));
+            /*
+            cout << "QUALITY    "
+                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                 << endl << data << endl;
+            cout << "Quality: " << quality << "%" << endl;
+            */
+            continue;
+          }
+          if (stringStartsWith(data, "capability: "))
+          {
+            got_encryption = true;
+            encrypted = hasEncryption(removeFirst(data, 12));
+            /*
+            cout << "ENCRYPTION "
+                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                 << endl << data << endl;
+            cout << "Encrypted: " << encrypted << endl;
+            */
+            continue;
+          }
+          if (stringStartsWith(data, "SSID: "))
+          {
+            got_ssid = true;
+            ssid = getSSID(removeFirst(data, 6));
+            /*
+            cout << "SSID       "
+                 << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
+                 << endl << data << endl;
+            cout << "SSID:" << encrypted << endl;
+            */
+            continue;
+          }
       }
-      if (stringStartsWith(data, "signal: "))
+      for (auto row : ssid_list)
       {
-        got_quality = true;
-        quality = getSignalStrength(removeFirst(data, 8));
-        /*
-        cout << "QUALITY    "
-             << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-             << endl << data << endl;
-        cout << "Quality: " << quality << "%" << endl;
-        */
-        continue;
-      }
-      if (stringStartsWith(data, "capability: "))
-      {
-        got_encryption = true;
-        encrypted = hasEncryption(removeFirst(data, 12));
-        /*
-        cout << "ENCRYPTION "
-             << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-             << endl << data << endl;
-        cout << "Encrypted: " << encrypted << endl;
-        */
-        continue;
-      }
-      if (stringStartsWith(data, "SSID: "))
-      {
-        got_ssid = true;
-        ssid = getSSID(removeFirst(data, 6));
-        /*
-        cout << "SSID       "
-             << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
-             << endl << data << endl;
-        cout << "SSID:" << encrypted << endl;
-        */
-        continue;
+        cout << row << endl;
       }
   }
-
-  for (auto row : ssid_list)
-  {
-    cout << row << endl;
+  else {
+      cerr << "Couldn't open config file for reading.\n";
   }
-
-  exit(process->GetExitStatus());
+  // cleanup
+  remove(iwlist_filename);
+  exit(HR);
 }
+
