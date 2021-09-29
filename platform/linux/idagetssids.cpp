@@ -7,15 +7,16 @@
 #include <cstring>
 #include <algorithm>
 #include <list>
+#include <cmath>
 
 using namespace std;
 
 // some helper functions
 const string whitespace = " \t";
-const string quote = "\"";  
-const string comma = ",";  
+const string quote = "\"";
+const string comma = ",";
 
-string trim(const string& str)
+string trim(const string str)
 {
   const auto str_begin = str.find_first_not_of(whitespace);
   if (str_begin == string::npos) return ""; // no content
@@ -26,59 +27,91 @@ string trim(const string& str)
   return str.substr(str_begin, range);
 }
 
-bool stringStartsWith(const string& str, const string& phrase)
+bool stringStartsWith(const string str, const string phrase)
 {
   return str.rfind(phrase, 0) == 0;
 }
 
-string getQuality(const string& str)
+string removeFirst(const string str, size_t count)
 {
-  const auto equals_pos = str.find_first_of("=");
-  const auto div_pos = str.find_first_of("/");
-  const auto first_space = str.find_first_of(whitespace);
-  if (string::npos == equals_pos || string::npos == div_pos || string::npos == first_space) return ""; // no content
-
-  string numerator_str = str.substr(equals_pos+1, (div_pos-equals_pos+1));
-  string denominator_str = str.substr(div_pos+1, (first_space-div_pos+1));
-
-  int numerator = std::stoi(numerator_str) * 100;
-  int denominator = std::stoi(denominator_str);
-  int pct = numerator/denominator;
-
-  return to_string(pct);
+  return str.substr(count, str.size() - count);
 }
 
-string hasEncryption(const string& str)
+// Apply character escaping for the " character, in the same way
+// that the iw command escaped non-printable characters.
+string escapeQuotes(const string str)
 {
-  const auto colon_pos = str.find_first_of(":");
-  if (string::npos == colon_pos) return ""; // no content
+  string escaped;
 
-  string enc_str = str.substr(colon_pos+1);
-  if (enc_str == "on") return "y";
-  if (enc_str == "off") return "n";
-  return "?";
+  for (string::const_iterator it = str.cbegin(); it != str.cend(); ++it)
+  {
+    if (*it != '"')
+    {
+      escaped += *it;
+    }
+    else
+    {
+      escaped += "\\x22";
+    }
+  }
+
+  return escaped;
+}
+
+double between(double d, double minimum, double maximum)
+{
+  if (d < minimum)
+  {
+    return minimum;
+  }
+  else if (d > maximum)
+  {
+    return maximum;
+  }
+  else
+  {
+    return d;
+  }
+}
+
+size_t getSignalStrengthPercentage(double decibels)
+{
+  return (size_t) lround(
+    (100.0 - abs(between(decibels, -90, -30)) - 10.0) / 60.0 * 100.0
+  );
+}
+
+string getSignalStrength(const string str)
+{
+  return to_string(
+    getSignalStrengthPercentage(
+      stod(str.substr(0, str.size() - 4))
+    )
+  );
+}
+
+string hasEncryption(const string str)
+{
+  return
+    (str.find_first_of("Privacy") != string::npos)
+    ? "y"
+    : "n";
 }
 
 string getSSID(const string& str)
 {
-  const auto colon_pos = str.find_first_of(":");
-  const auto first_quote = str.find_first_of('"', colon_pos);
-  const auto last_quote = str.find_last_of('"');
-  if (string::npos == colon_pos || string::npos == first_quote || string::npos == last_quote) return ""; // no content
-
-  return str.substr(first_quote+1, (last_quote-first_quote-1));
+  return escapeQuotes(str);
 }
 
-
-int main(void) 
+int main(void)
 {
   // filenames and stuff
   char iwlist_filename[32];
   char iwlist_cmd[128];
   char iwgetid_filename[32];
   char iwgetid_cmd[128];
-  sprintf(iwlist_filename, "/tmp/iwlist.%i", getpid());
-  sprintf(iwlist_cmd, "/usr/sbin/iwlist wlan0 scan > %s", iwlist_filename);
+  sprintf(iwlist_filename, "/tmp/iw.%i", getpid());
+  sprintf(iwlist_cmd, "/usr/sbin/iw wlan0 scan > %s", iwlist_filename);
   sprintf(iwgetid_filename, "/tmp/iwgetid.%i", getpid());
   sprintf(iwgetid_cmd, "/usr/sbin/iwgetid --raw > %s", iwgetid_filename);
 
@@ -113,9 +146,9 @@ int main(void)
   {
     // that didn't work...
     cerr << "problem issuing the iwlist call. exiting." << endl;
-    return(HR); 
+    return(HR);
   }
-  
+
   // open up our datafile and parse
   ifstream datafile(iwlist_filename);
   if (datafile.is_open())
@@ -145,46 +178,46 @@ int main(void)
 
           // process a line.
           string data = trim(line);
-          if (stringStartsWith(data, "Cell "))
+          if (stringStartsWith(data, "BSS "))
           {
             in_cell = true;
             /*
-            cout << "CELL       " 
+            cout << "CELL       "
                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
                  << endl; // << data << endl;
             */
             continue;
           }
-          if (stringStartsWith(data, "Quality="))
+          if (stringStartsWith(data, "signal: "))
           {
             got_quality = true;
-            quality = getQuality(data);
+            quality = getSignalStrength(removeFirst(data, 8));
             /*
-            cout << "QUALITY    " 
+            cout << "QUALITY    "
                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
                  << endl << data << endl;
             cout << "Quality: " << quality << "%" << endl;
             */
             continue;
           }
-          if (stringStartsWith(data, "Encryption key:"))
+          if (stringStartsWith(data, "capability: "))
           {
             got_encryption = true;
-            encrypted = hasEncryption(data);
+            encrypted = hasEncryption(removeFirst(data, 12));
             /*
-            cout << "ENCRYPTION " 
+            cout << "ENCRYPTION "
                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
                  << endl << data << endl;
             cout << "Encrypted: " << encrypted << endl;
             */
             continue;
           }
-          if (stringStartsWith(data, "ESSID:"))
+          if (stringStartsWith(data, "SSID: "))
           {
             got_ssid = true;
-            ssid = getSSID(data);
+            ssid = getSSID(removeFirst(data, 6));
             /*
-            cout << "SSID       " 
+            cout << "SSID       "
                  << "[" << (in_cell?"C":" ") << (got_quality?"Q":" ") << (got_encryption?"E":" ") << (got_ssid?"S":" ") << "]"
                  << endl << data << endl;
             cout << "SSID:" << encrypted << endl;
