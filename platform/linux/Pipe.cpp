@@ -27,7 +27,7 @@ namespace Sequent
         }
     }
 
-    tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> Pipe::CreatePipePair()
+    unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> Pipe::CreatePipePair()
     {
         int pipePair[2];
 
@@ -35,11 +35,12 @@ namespace Sequent
             throw IoException("Failed to create pipe pair");
         }
 
-        return make_tuple(
+        return make_unique< tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>>(
             make_unique<Pipe>(pipePair[0], PipeDirection::Read),
             make_unique<Pipe>(pipePair[1], PipeDirection::Write)
         );
     }
+
 
     int Pipe::GetFileDescriptor()
     {
@@ -77,7 +78,7 @@ namespace Sequent
         return bytesRead;
     }
 
-    size_t Pipe::Write(uint8_vector &buffer, size_t offset, size_t count)
+    void Pipe::Write(uint8_vector &buffer, size_t offset, size_t count)
     {
         AssertNotClosed();
 
@@ -96,7 +97,22 @@ namespace Sequent
             throw ArgumentOutOfRangeException("count");
         }
 
-        return write(fileDescriptor, buffer.data() + offset, count);
+        while (count > 0)
+        {
+            int bytesWritten = write(fileDescriptor, buffer.data() + offset, count);
+
+            if (bytesWritten == -1)
+            {
+                throw IoException();
+            }
+            else if (bytesWritten == 0)
+            {
+                throw EndOfStreamException();
+            }
+
+            offset += bytesWritten;
+            count -= bytesWritten;
+        }
     }
 
     void Pipe::Close()
@@ -119,3 +135,4 @@ namespace Sequent
         }
     }
 }
+

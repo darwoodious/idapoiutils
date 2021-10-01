@@ -38,12 +38,13 @@ int main(int argc, char *argv[])
   uint8_vector lengthBuffer(1);
   unique_ptr<uint8_vector> ssidBuffer = AsciiEncoder::Encode(ssid);
   unique_ptr<uint8_vector> passwordBuffer = AsciiEncoder::Encode(password);
-  unique_ptr<Process> process = Process::Execute("./idasetwifi", Redirect::StandardIn, "idasetwifi");
+  unique_ptr<Process> process = Process::Execute("./idasetwifi", "idasetwifi");
   Pipe &standardIn(process->GetStandardIn());
 
   lengthBuffer[0] = (uint8_t) ssidBuffer->size();
   standardIn.Write(lengthBuffer, 0, lengthBuffer.size());
   standardIn.Write(*ssidBuffer, 0, ssidBuffer->size());
+
   lengthBuffer[0] = (uint8_t) passwordBuffer->size();
   standardIn.Write(lengthBuffer, 0, lengthBuffer.size());
   standardIn.Write(*passwordBuffer, 0, passwordBuffer->size());
@@ -53,3 +54,4 @@ int main(int argc, char *argv[])
 
   return process->GetExitStatus();
 }
+

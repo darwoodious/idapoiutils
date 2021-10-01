@@ -8,9 +8,9 @@
 #include <vector>
 
 #include "Types.h"
-#include "AsciiEncoder.h"
 #include "HexConverter.h"
-#include "Process.h"
+#include "ProcessResult.h"
+#include "ProcessUtilities.h"
 
 using namespace std;
 using namespace Sequent;
@@ -128,14 +128,13 @@ int main(int argc, char *argv[])
     return(HR);
   }
 
-  unique_ptr<Process> process;
+  uint8_vector emptyStdInData;
+  unique_ptr<ProcessResult> processResult;
 
   // should be ready to go... load it into the system
-  process = Process::Execute("/usr/sbin/wpa_cli", Redirect::None, "wpa_cli", "-i", "wlan0", "reconfigure");
+  processResult = ProcessUtilities::ExecuteWaitReadOutputs("/usr/sbin/wpa_cli", emptyStdInData, "wpa_cli", "-i", "wlan0", "reconfigure");
 
-  process->Wait();
-
-  if (process->GetExitStatus())
+  if(processResult->GetStatus())
   {
     // ok, problem - something didn't work. let's try to backout
     int HRX = rename(conf_backup_name.c_str(), conf_name.c_str());
@@ -219,3 +218,4 @@ string BinaryToAsciiOrHex(uint8_vector &binary, bool &isAscii)
     return HexConverter::ByteArrayToHexString(binary);
   }
 }
+

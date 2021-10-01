@@ -6,7 +6,6 @@
 #include <poll.h>
 #include <stdarg.h>
 
-#include "Types.h"
 #include "Pipe.h"
 #include "IoException.h"
 #include "ProcessException.h"
@@ -23,21 +22,20 @@ using std::tuple;
 
 namespace Sequent
 {
-    Process::Process(int processId, Redirect redirect, shared_ptr<Pipe> standardIn, shared_ptr<Pipe> standardOut, shared_ptr<Pipe> standardError)
-    : processId(processId), redirect(redirect), standardIn(standardIn), standardOut(standardOut), standardError(standardError), hasExited(false)
+    Process::Process(int processId, shared_ptr<Pipe> standardIn, shared_ptr<Pipe> standardOut, shared_ptr<Pipe> standardError)
+    : processId(processId), standardIn(standardIn), standardOut(standardOut), standardError(standardError), hasExited(false)
     { }
 
-    unique_ptr<Process> Process::Execute(string command, Redirect redirect, string argument1)
+    unique_ptr<Process> Process::Execute(string command, string argument1)
     {
         vector<string> arguments;
 
-        arguments.reserve(1);
         arguments.push_back(argument1);
 
-        return Execute(command, redirect, arguments);
+        return Execute(command, arguments);
     }
 
-    unique_ptr<Process> Process::Execute(string command, Redirect redirect, string argument1, string argument2)
+    unique_ptr<Process> Process::Execute(string command, string argument1, string argument2)
     {
         vector<string> arguments;
 
@@ -45,10 +43,10 @@ namespace Sequent
         arguments.push_back(argument1);
         arguments.push_back(argument2);
 
-        return Execute(command, redirect, arguments);
+        return Execute(command, arguments);
     }
 
-    unique_ptr<Process> Process::Execute(string command, Redirect redirect, string argument1, string argument2, string argument3)
+    unique_ptr<Process> Process::Execute(string command, string argument1, string argument2, string argument3)
     {
         vector<string> arguments;
 
@@ -57,10 +55,10 @@ namespace Sequent
         arguments.push_back(argument2);
         arguments.push_back(argument3);
 
-        return Execute(command, redirect, arguments);
+        return Execute(command, arguments);
     }
 
-    unique_ptr<Process> Process::Execute(string command, Redirect redirect, string argument1, string argument2, string argument3, string argument4)
+    unique_ptr<Process> Process::Execute(string command, string argument1, string argument2, string argument3, string argument4)
     {
         vector<string> arguments;
 
@@ -70,38 +68,20 @@ namespace Sequent
         arguments.push_back(argument3);
         arguments.push_back(argument4);
 
-        return Execute(command, redirect, arguments);
+        return Execute(command, arguments);
     }
 
-    unique_ptr<Process> Process::Execute(string command, Redirect redirect, vector<string> &arguments)
+    unique_ptr<Process> Process::Execute(string command, vector<string> &arguments)
     {
-        unique_ptr<Pipe> stdInPipeParent;
-        unique_ptr<Pipe> stdInPipeChild;
-        unique_ptr<Pipe> stdOutPipeParent;
-        unique_ptr<Pipe> stdOutPipeChild;
-        unique_ptr<Pipe> stdErrPipeParent;
-        unique_ptr<Pipe> stdErrPipeChild;
-
-        if ((redirect & Redirect::StandardIn) == Redirect::StandardIn)
-        {
-            tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> stdInPipePair = Pipe::CreatePipePair();
-            stdInPipeParent = std::move(std::get<1>(stdInPipePair));
-            stdInPipeChild = std::move(std::get<0>(stdInPipePair));
-        }
-
-        if ((redirect & Redirect::StandardOut) == Redirect::StandardOut)
-        {
-            tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> stdOutPipePair = Pipe::CreatePipePair();
-            stdOutPipeParent = std::move(std::get<0>(stdOutPipePair));
-            stdOutPipeChild = std::move(std::get<1>(stdOutPipePair));
-        }
-
-        if ((redirect & Redirect::StandardError) == Redirect::StandardError)
-        {
-            tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> stdErrPipePair = Pipe::CreatePipePair();
-            stdErrPipeParent = std::move(std::get<0>(stdErrPipePair));
-            stdErrPipeChild = std::move(std::get<1>(stdErrPipePair));
-        }
+        unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> stdInPipePair = Pipe::CreatePipePair();
+        unique_ptr<Pipe> stdInPipeParent = std::move(std::get<1>(*stdInPipePair));
+        unique_ptr<Pipe> stdInPipeChild = std::move(std::get<0>(*stdInPipePair));
+        unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> stdOutPipePair = Pipe::CreatePipePair();
+        unique_ptr<Pipe> stdOutPipeParent = std::move(std::get<0>(*stdOutPipePair));
+        unique_ptr<Pipe> stdOutPipeChild = std::move(std::get<1>(*stdOutPipePair));
+        unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> stdErrPipePair = Pipe::CreatePipePair();
+        unique_ptr<Pipe> stdErrPipeParent = std::move(std::get<0>(*stdErrPipePair));
+        unique_ptr<Pipe> stdErrPipeChild = std::move(std::get<1>(*stdErrPipePair));
 
         int processId = fork();
 
@@ -113,7 +93,7 @@ namespace Sequent
         if (processId > 0)
         {
             // Parent process.
-            return unique_ptr<Process>(new Process(processId, redirect, std::move(stdInPipeParent), std::move(stdOutPipeParent), std::move(stdErrPipeParent)));
+            return unique_ptr<Process>(new Process(processId, std::move(stdInPipeParent), std::move(stdOutPipeParent), std::move(stdErrPipeParent)));
         }
         else
         {
@@ -122,25 +102,19 @@ namespace Sequent
             stdOutPipeParent = nullptr;
             stdErrPipeParent = nullptr;
 
-            if ((redirect & Redirect::StandardIn) == Redirect::StandardIn)
-            {
-                if (dup2(stdInPipeChild->GetFileDescriptor(), STDIN_FILENO) == -1) {
-                    exit(errno);
-                }
+            // Redirect stdInData.
+            if (dup2(stdInPipeChild->GetFileDescriptor(), STDIN_FILENO) == -1) {
+                exit(errno);
             }
 
-            if ((redirect & Redirect::StandardOut) == Redirect::StandardOut)
-            {
-                if (dup2(stdOutPipeChild->GetFileDescriptor(), STDOUT_FILENO) == -1) {
-                    exit(errno);
-                }
+            // Redirect stdout.
+            if (dup2(stdOutPipeChild->GetFileDescriptor(), STDOUT_FILENO) == -1) {
+                exit(errno);
             }
 
-            if ((redirect & Redirect::StandardError) == Redirect::StandardError)
-            {
-                if (dup2(stdErrPipeChild->GetFileDescriptor(), STDERR_FILENO) == -1) {
-                    exit(errno);
-                }
+            // Redirect stderr.
+            if (dup2(stdErrPipeChild->GetFileDescriptor(), STDERR_FILENO) == -1) {
+                exit(errno);
             }
 
             stdInPipeChild = nullptr;
@@ -169,151 +143,19 @@ namespace Sequent
         return processId;
     }
 
-    Redirect Process::GetRedirect()
-    {
-        return redirect;
-    }
-
     Pipe &Process::GetStandardIn()
     {
-        if ((redirect & Redirect::StandardIn) != Redirect::StandardIn)
-        {
-            throw InvalidOperationException("Standard In was not redirected");
-        }
-
         return *standardIn;
     }
 
     Pipe &Process::GetStandardOut()
     {
-        if ((redirect & Redirect::StandardOut) != Redirect::StandardOut)
-        {
-            throw InvalidOperationException("Standard Out was not redirected");
-        }
-
         return *standardOut;
     }
 
     Pipe &Process::GetStandardError()
     {
-        if ((redirect & Redirect::StandardError) != Redirect::StandardError)
-        {
-            throw InvalidOperationException("Standard Error was not redirected");
-        }
-
         return *standardError;
-    }
-
-    void Process::ExchangeStandardIo(uint8_vector *standardInData, uint8_vector *standardOutData, uint8_vector *standardErrorData)
-    {
-        if (redirect == Redirect::None)
-        {
-            return;
-        }
-
-        size_t fileDescriptorCount = 0;
-        Pipe *standardInPipe;
-        Pipe *standardOutPipe;
-        Pipe *standardErrorPipe;
-
-        if ((redirect & Redirect::StandardIn) == Redirect::StandardIn)
-        {
-            standardInPipe = &*standardIn;
-
-            if (!standardInData || !standardInData->size())
-            {
-                standardInPipe->Close();
-                standardInPipe = nullptr;
-            }
-            else
-            {
-                ++fileDescriptorCount;
-            }
-        }
-
-        if ((redirect & Redirect::StandardOut) == Redirect::StandardOut)
-        {
-            standardOutPipe = &*standardOut;
-            ++fileDescriptorCount;
-        }
-
-        if ((redirect & Redirect::StandardError) == Redirect::StandardError)
-        {
-            standardErrorPipe = &*standardError;
-            ++fileDescriptorCount;
-        }
-
-        if (!fileDescriptorCount)
-        {
-            return;
-        }
-
-        pollfd pollFileDescriptors[3];
-        size_t standardInPosition = 0;
-        unique_ptr<uint8_vector> readBuffer;
-
-        if (standardOutPipe || standardErrorPipe)
-        {
-            readBuffer = make_unique<uint8_vector>(8192);
-        }
-
-        pollFileDescriptors[0].fd = standardInPipe ? standardInPipe->GetFileDescriptor() : -1;
-        pollFileDescriptors[0].events = POLLOUT;
-        pollFileDescriptors[1].fd = standardOutPipe ? standardOutPipe->GetFileDescriptor() : -1;
-        pollFileDescriptors[1].events = POLLIN;
-        pollFileDescriptors[2].fd = standardErrorPipe ? standardErrorPipe->GetFileDescriptor() : -1;
-        pollFileDescriptors[2].events = POLLIN;
-
-        while (fileDescriptorCount)
-        {
-            poll(pollFileDescriptors, 3, -1);
-
-            if (pollFileDescriptors[0].revents & POLLOUT)
-            {
-                standardInPosition += standardInPipe->Write(*standardInData, standardInPosition, std::min((size_t) 8192, standardInData->size() - standardInPosition));
-
-                if (standardInPosition == standardInData->size())
-                {
-                    pollFileDescriptors[0].fd = -1;
-                    --fileDescriptorCount;
-                    standardInPipe->Close();
-                }
-            }
-
-            if (pollFileDescriptors[1].revents & POLLIN)
-            {
-                size_t bytesRead = standardOutPipe->Read(*readBuffer, 0, readBuffer->size());
-
-                if (standardOutData)
-                {
-                    standardOutData->insert(standardOutData->end(), readBuffer->cbegin(), readBuffer->cbegin() + bytesRead);
-                }
-            }
-
-            if (pollFileDescriptors[1].revents & POLLHUP)
-            {
-                pollFileDescriptors[1].fd = -1;
-                --fileDescriptorCount;
-                standardOutPipe->Close();
-            }
-
-            if (pollFileDescriptors[2].revents & POLLIN)
-            {
-                size_t bytesRead = standardErrorPipe->Read(*readBuffer, 0, readBuffer->size());
-
-                if (standardErrorData)
-                {
-                    standardErrorData->insert(standardErrorData->end(), readBuffer->cbegin(), readBuffer->cbegin() + bytesRead);
-                }
-            }
-
-            if (pollFileDescriptors[2].revents & POLLHUP)
-            {
-                pollFileDescriptors[2].fd = -1;
-                --fileDescriptorCount;
-                standardErrorPipe->Close();
-            }
-        }
     }
 
     void Process::Wait()
@@ -335,3 +177,4 @@ namespace Sequent
         return exitStatus;
     }
 }
+
