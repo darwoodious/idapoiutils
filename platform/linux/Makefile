@@ -1,21 +1,42 @@
 all: idagetssids idasetwifi idasetwifitest
 
-HexConverter.o: HexConverter.h
+HexConverter.o: HexConverter.cpp
 	g++ -std=c++14 -c -o HexConverter.o HexConverter.cpp
+
+AsciiEncoder.o: AsciiEncoder.cpp
+	g++ -std=c++14 -c -o AsciiEncoder.o AsciiEncoder.cpp
+
+Pipe.o: Pipe.cpp
+	g++ -std=c++14 -c -o Pipe.o Pipe.cpp
+
+Process.o: Process.cpp
+	g++ -std=c++14 -c -o Process.o Process.cpp
+
+ProcessResult.o: ProcessResult.cpp
+	g++ -std=c++14 -c -o ProcessResult.o ProcessResult.cpp
+
+ProcessUtilities.o: ProcessUtilities.cpp
+	g++ -std=c++14 -c -o ProcessUtilities.o ProcessUtilities.cpp
 
 idasetwifi.o: idasetwifi.cpp
 	g++ -std=c++14 -c -o idasetwifi.o idasetwifi.cpp
 
-idagetssids: idagetssids.cpp
-	g++ -std=c++14 -o idagetssids idagetssids.cpp
-	./setuid.sh idagetssids
+idagetssids.o: idagetssids.cpp
+	g++ -std=c++14 -c -o idagetssids.o idagetssids.cpp
 
-idasetwifi: idasetwifi.o HexConverter.o
-	g++ -o idasetwifi -lm idasetwifi.o HexConverter.o
+idasetwifitest.o: idasetwifitest.cpp
+	g++ -std=c++14 -c -o idasetwifitest.o idasetwifitest.cpp
+
+idasetwifi: idasetwifi.o HexConverter.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
+	g++ -o idasetwifi -lm idasetwifi.o HexConverter.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
 	./setuid.sh idasetwifi
 
-idasetwifitest: idasetwifitest.cpp
-	g++ -std=c++14 -o idasetwifitest idasetwifitest.cpp
+idagetssids: idagetssids.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
+	g++ -o idagetssids -lm idagetssids.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
+	./setuid.sh idagetssids
+
+idasetwifitest: idasetwifitest.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
+	g++ -o idasetwifitest -lm idasetwifitest.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
 
 clean:
 	rm -f *.o idagetssids idasetwifi idasetwifitest

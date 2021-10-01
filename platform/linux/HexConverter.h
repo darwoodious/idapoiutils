@@ -13,5 +13,4 @@ namespace HexConverter
     std::string ByteArrayToHexString(const uint8_vector &buffer);
     std::string ByteArrayToHexString(const uint8_vector &buffer, size_t offset, size_t count);
 }
-}
-
+};

@@ -8,7 +8,13 @@
 #include <vector>
 #include <sys/wait.h>
 
+#include "Types.h"
+#include "AsciiEncoder.h"
+#include "Pipe.h"
+#include "Process.h"
+
 using namespace std;
+using namespace Sequent;
 
 int main(int argc, char *argv[])
 {
@@ -29,62 +35,22 @@ int main(int argc, char *argv[])
   cerr << "SSID: " << ssid << endl;
   cerr << "Password: " << password << endl;
 
-  int stdInPipePair[2];
+  uint8_vector lengthBuffer(1);
+  unique_ptr<uint8_vector> ssidBuffer = AsciiEncoder::Encode(ssid);
+  unique_ptr<uint8_vector> passwordBuffer = AsciiEncoder::Encode(password);
+  unique_ptr<Process> process = Process::Execute("./idasetwifi", "idasetwifi");
+  Pipe &standardIn(process->GetStandardIn());
 
-  if (pipe(stdInPipePair) < 0)
-  {
-    cerr << "Failed to create pipe pair" << endl;
-    return 1;
-  }
+  lengthBuffer[0] = (uint8_t) ssidBuffer->size();
+  standardIn.Write(lengthBuffer, 0, lengthBuffer.size());
+  standardIn.Write(*ssidBuffer, 0, ssidBuffer->size());
 
-  int stdInPipeParent = stdInPipePair[1];
-  int stdInPipeChild = stdInPipePair[0];
+  lengthBuffer[0] = (uint8_t) passwordBuffer->size();
+  standardIn.Write(lengthBuffer, 0, lengthBuffer.size());
+  standardIn.Write(*passwordBuffer, 0, passwordBuffer->size());
 
-  int pid = fork();
+  standardIn.Close();
+  process->Wait();
 
-  if (pid < 0)
-  {
-    cerr << "Fork() failed" << endl;
-    return pid;
-  }
-
-  if (pid > 0)
-  {
-    // Parent.
-    close(stdInPipeChild);
-
-    uint8_t lengthBuffer[1];
-
-    lengthBuffer[0] = (uint8_t) ssid.size();
-
-    write(stdInPipeParent, lengthBuffer, 1);
-    write(stdInPipeParent, ssid.data(), ssid.size());
-
-    lengthBuffer[0] = (uint8_t) password.size();
-
-    write(stdInPipeParent, lengthBuffer, 1);
-    write(stdInPipeParent, password.data(), password.size());
-
-    close(stdInPipeParent);
-
-    int processStatus;
-
-    waitpid(pid, &processStatus, 0);
-
-    return processStatus;
-  }
-  else
-  {
-    // Child;
-    close(stdInPipeParent);
-
-    if (dup2(stdInPipeChild, STDIN_FILENO) == -1) {
-      cerr << "<child> dup2 failed" << endl;
-      exit(errno);
-    }
-
-    execvp("./idasetwifi", nullptr);
-    cerr << "<child> execvp failed" << endl;
-    exit(errno);
-  }
+  return process->GetExitStatus();
 }
