@@ -1,4 +1,4 @@
 #/bin/bash
 
-sudo chown root $1
-sudo chmod ug+s $1
+sudo chown root idasetwifi idagetssids
+sudo chmod ug+s idasetwifi idagetssids
