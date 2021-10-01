@@ -8,9 +8,9 @@
 #include <vector>
 
 #include "Types.h"
+#include "AsciiEncoder.h"
 #include "HexConverter.h"
-#include "ProcessResult.h"
-#include "ProcessUtilities.h"
+#include "Process.h"
 
 using namespace std;
 using namespace Sequent;
@@ -128,13 +128,26 @@ int main(int argc, char *argv[])
     return(HR);
   }
 
-  uint8_vector emptyStdInData;
-  unique_ptr<ProcessResult> processResult;
+  uint8_vector standardError;
+  unique_ptr<Process> process;
 
   // should be ready to go... load it into the system
-  processResult = ProcessUtilities::ExecuteWaitReadOutputs("/usr/sbin/wpa_cli", emptyStdInData, "wpa_cli", "-i", "wlan0", "reconfigure");
+  process = Process::Execute("/usr/sbin/wpa_cli", Redirect::StandardError, "wpa_cli", "-i", "wlan0", "reconfigure");
 
-  if(processResult->GetStatus())
+  process->ExchangeStandardIo(nullptr, nullptr, &standardError);
+  process->Wait();
+
+  if (standardError.size())
+  {
+    cerr << AsciiEncoder::Decode(standardError);
+
+    if (standardError.back() != '\n')
+    {
+      cerr << endl;
+    }
+  }
+
+  if(process->GetExitStatus())
   {
     // ok, problem - something didn't work. let's try to backout
     int HRX = rename(conf_backup_name.c_str(), conf_name.c_str());

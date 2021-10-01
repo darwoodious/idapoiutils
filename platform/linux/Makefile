@@ -12,12 +12,6 @@ Pipe.o: Pipe.cpp
 Process.o: Process.cpp
 	g++ -std=c++14 -c -o Process.o Process.cpp
 
-ProcessResult.o: ProcessResult.cpp
-	g++ -std=c++14 -c -o ProcessResult.o ProcessResult.cpp
-
-ProcessUtilities.o: ProcessUtilities.cpp
-	g++ -std=c++14 -c -o ProcessUtilities.o ProcessUtilities.cpp
-
 idasetwifi.o: idasetwifi.cpp
 	g++ -std=c++14 -c -o idasetwifi.o idasetwifi.cpp
 
@@ -27,16 +21,16 @@ idagetssids.o: idagetssids.cpp
 idasetwifitest.o: idasetwifitest.cpp
 	g++ -std=c++14 -c -o idasetwifitest.o idasetwifitest.cpp
 
-idasetwifi: idasetwifi.o HexConverter.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
-	g++ -o idasetwifi -lm idasetwifi.o HexConverter.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
+idasetwifi: idasetwifi.o AsciiEncoder.o HexConverter.o Pipe.o Process.o
+	g++ -o idasetwifi -lm idasetwifi.o AsciiEncoder.o HexConverter.o Pipe.o Process.o
 	./setuid.sh idasetwifi
 
-idagetssids: idagetssids.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
-	g++ -o idagetssids -lm idagetssids.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
+idagetssids: idagetssids.o AsciiEncoder.o Pipe.o Process.o
+	g++ -o idagetssids -lm idagetssids.o AsciiEncoder.o Pipe.o Process.o
 	./setuid.sh idagetssids
 
-idasetwifitest: idasetwifitest.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
-	g++ -o idasetwifitest -lm idasetwifitest.o AsciiEncoder.o Pipe.o Process.o ProcessResult.o ProcessUtilities.o
+idasetwifitest: idasetwifitest.o AsciiEncoder.o Pipe.o Process.o
+	g++ -o idasetwifitest -lm idasetwifitest.o AsciiEncoder.o Pipe.o Process.o
 
 clean:
 	rm -f *.o idagetssids idasetwifi idasetwifitest

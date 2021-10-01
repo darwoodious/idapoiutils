@@ -9,8 +9,8 @@
 #include <sstream>
 
 #include "AsciiEncoder.h"
-#include "ProcessResult.h"
-#include "ProcessUtilities.h"
+#include "Pipe.h"
+#include "Process.h"
 
 using namespace std;
 using namespace Sequent;
@@ -109,37 +109,67 @@ string getSSID(const string& str)
 
 int main(void)
 {
-  uint8_vector emptyStdInData;
-  unique_ptr<ProcessResult> processResult;
+  uint8_vector standardOut;
+  uint8_vector standardError;
+  unique_ptr<Process> process;
   string current_ssid;
   list<string> ssid_list;
 
   // let's be root
   setuid(0);
 
-  processResult = ProcessUtilities::ExecuteWaitReadOutputs("/usr/sbin/iwgetid", emptyStdInData, "iwgetid", "--raw");
+  process = Process::Execute("/usr/sbin/iwgetid", Redirect::Outputs, "iwgetid", "--raw");
 
-  if (processResult->GetStatus())
+  process->ExchangeStandardIo(nullptr, &standardOut, &standardError);
+  process->Wait();
+
+  if (standardError.size())
+  {
+    cerr << AsciiEncoder::Decode(standardError);
+
+    if (standardError.back() != '\n')
+    {
+      cerr << endl;
+    }
+  }
+
+  if (process->GetExitStatus())
   {
     // didn't work but we'll just set the current SSID to "" and it won't match
   }
   else
   {
-    current_ssid = trim(AsciiEncoder::Decode(processResult->GetStdOut()));
+    current_ssid = trim(AsciiEncoder::Decode(standardOut));
   }
 
-  // attempt to get the content from iw
-  processResult = ProcessUtilities::ExecuteWaitReadOutputs("/usr/sbin/iw", emptyStdInData, "iw", "wlan0", "scan");
+  standardOut.clear();
+  standardError.clear();
 
-  if (processResult->GetStatus())
+  // attempt to get the content from iw
+  process = Process::Execute("/usr/sbin/iw", Redirect::Outputs, "iw", "wlan0", "scan");
+
+  process->ExchangeStandardIo(nullptr, &standardOut, &standardError);
+  process->Wait();
+
+  if (standardError.size())
+  {
+    cerr << AsciiEncoder::Decode(standardError);
+
+    if (standardError.back() != '\n')
+    {
+      cerr << endl;
+    }
+  }
+
+  if (process->GetExitStatus())
   {
     // that didn't work...
     cerr << "problem issuing the iwlist call. exiting." << endl;
-    return(processResult->GetStatus());
+    return process->GetExitStatus();
   }
 
-  string stdOut = AsciiEncoder::Decode(processResult->GetStdOut());
-  istringstream stdOutStream(stdOut);
+  string standardOutAscii = AsciiEncoder::Decode(standardOut);
+  istringstream standardOutStream(standardOutAscii);
 
   bool in_cell = false;
   bool got_quality = false;
@@ -150,7 +180,7 @@ int main(void)
   string ssid = "";
   string line;
 
-  while(getline(stdOutStream, line))
+  while(getline(standardOutStream, line))
   {
     if (in_cell && got_quality && got_encryption && got_ssid)
     {
@@ -219,5 +249,5 @@ int main(void)
     cout << row << endl;
   }
 
-  exit(processResult->GetStatus());
+  exit(process->GetExitStatus());
 }

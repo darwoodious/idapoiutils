@@ -28,7 +28,7 @@ namespace Sequent
 
         int GetFileDescriptor();
         size_t Read(uint8_vector &buffer, size_t offset, size_t count);
-        void Write(uint8_vector &buffer, size_t offset, size_t count);
+        size_t Write(uint8_vector &buffer, size_t offset, size_t count);
         void Close();
     };
 }

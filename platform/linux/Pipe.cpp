@@ -41,7 +41,6 @@ namespace Sequent
         );
     }
 
-
     int Pipe::GetFileDescriptor()
     {
         AssertNotClosed();
@@ -78,7 +77,7 @@ namespace Sequent
         return bytesRead;
     }
 
-    void Pipe::Write(uint8_vector &buffer, size_t offset, size_t count)
+    size_t Pipe::Write(uint8_vector &buffer, size_t offset, size_t count)
     {
         AssertNotClosed();
 
@@ -97,22 +96,7 @@ namespace Sequent
             throw ArgumentOutOfRangeException("count");
         }
 
-        while (count > 0)
-        {
-            int bytesWritten = write(fileDescriptor, buffer.data() + offset, count);
-
-            if (bytesWritten == -1)
-            {
-                throw IoException();
-            }
-            else if (bytesWritten == 0)
-            {
-                throw EndOfStreamException();
-            }
-
-            offset += bytesWritten;
-            count -= bytesWritten;
-        }
+        return write(fileDescriptor, buffer.data() + offset, count);
     }
 
     void Pipe::Close()
