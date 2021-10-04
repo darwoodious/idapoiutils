@@ -24,7 +24,7 @@ namespace Sequent
         Pipe(int fileDescriptor, PipeDirection pipeDirection);
         ~Pipe();
 
-        static std::unique_ptr<std::tuple<std::unique_ptr<Pipe>, std::unique_ptr<Pipe>>> CreatePipePair();
+        static std::tuple<std::unique_ptr<Pipe>, std::unique_ptr<Pipe>> CreatePipePair();
 
         int GetFileDescriptor();
         size_t Read(uint8_vector &buffer, size_t offset, size_t count);

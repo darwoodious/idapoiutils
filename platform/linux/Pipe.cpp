@@ -27,7 +27,7 @@ namespace Sequent
         }
     }
 
-    unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> Pipe::CreatePipePair()
+    tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> Pipe::CreatePipePair()
     {
         int pipePair[2];
 
@@ -35,7 +35,7 @@ namespace Sequent
             throw IoException("Failed to create pipe pair");
         }
 
-        return make_unique< tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>>(
+        return make_tuple(
             make_unique<Pipe>(pipePair[0], PipeDirection::Read),
             make_unique<Pipe>(pipePair[1], PipeDirection::Write)
         );
