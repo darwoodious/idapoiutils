@@ -84,23 +84,23 @@ namespace Sequent
 
         if ((redirect & Redirect::StandardIn) == Redirect::StandardIn)
         {
-            unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> stdInPipePair = Pipe::CreatePipePair();
-            stdInPipeParent = std::move(std::get<1>(*stdInPipePair));
-            stdInPipeChild = std::move(std::get<0>(*stdInPipePair));
+            tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> stdInPipePair = Pipe::CreatePipePair();
+            stdInPipeParent = std::move(std::get<1>(stdInPipePair));
+            stdInPipeChild = std::move(std::get<0>(stdInPipePair));
         }
 
         if ((redirect & Redirect::StandardOut) == Redirect::StandardOut)
         {
-            unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> stdOutPipePair = Pipe::CreatePipePair();
-            stdOutPipeParent = std::move(std::get<0>(*stdOutPipePair));
-            stdOutPipeChild = std::move(std::get<1>(*stdOutPipePair));
+            tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> stdOutPipePair = Pipe::CreatePipePair();
+            stdOutPipeParent = std::move(std::get<0>(stdOutPipePair));
+            stdOutPipeChild = std::move(std::get<1>(stdOutPipePair));
         }
 
         if ((redirect & Redirect::StandardError) == Redirect::StandardError)
         {
-            unique_ptr<tuple<unique_ptr<Pipe>, unique_ptr<Pipe>>> stdErrPipePair = Pipe::CreatePipePair();
-            stdErrPipeParent = std::move(std::get<0>(*stdErrPipePair));
-            stdErrPipeChild = std::move(std::get<1>(*stdErrPipePair));
+            tuple<unique_ptr<Pipe>, unique_ptr<Pipe>> stdErrPipePair = Pipe::CreatePipePair();
+            stdErrPipeParent = std::move(std::get<0>(stdErrPipePair));
+            stdErrPipeChild = std::move(std::get<1>(stdErrPipePair));
         }
 
         int processId = fork();
