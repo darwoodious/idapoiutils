@@ -110,7 +110,6 @@ string getSSID(const string& str)
 int main(void)
 {
   uint8_vector standardOut;
-  uint8_vector standardError;
   unique_ptr<Process> process;
   string current_ssid;
   list<string> ssid_list;
@@ -118,20 +117,10 @@ int main(void)
   // let's be root
   setuid(0);
 
-  process = Process::Execute("/usr/sbin/iwgetid", Redirect::Outputs, "iwgetid", "--raw");
+  process = Process::Execute("/usr/sbin/iwgetid", Redirect::StandardOut, "iwgetid", "--raw");
 
-  process->ExchangeStandardIo(nullptr, &standardOut, &standardError);
+  process->ExchangeStandardIo(nullptr, &standardOut, nullptr);
   process->Wait();
-
-  if (standardError.size())
-  {
-    cerr << AsciiEncoder::Decode(standardError);
-
-    if (standardError.back() != '\n')
-    {
-      cerr << endl;
-    }
-  }
 
   if (process->GetExitStatus())
   {
@@ -143,23 +132,12 @@ int main(void)
   }
 
   standardOut.clear();
-  standardError.clear();
 
   // attempt to get the content from iw
-  process = Process::Execute("/usr/sbin/iw", Redirect::Outputs, "iw", "wlan0", "scan");
+  process = Process::Execute("/usr/sbin/iw", Redirect::StandardOut, "iw", "wlan0", "scan");
 
-  process->ExchangeStandardIo(nullptr, &standardOut, &standardError);
+  process->ExchangeStandardIo(nullptr, &standardOut, nullptr);
   process->Wait();
-
-  if (standardError.size())
-  {
-    cerr << AsciiEncoder::Decode(standardError);
-
-    if (standardError.back() != '\n')
-    {
-      cerr << endl;
-    }
-  }
 
   if (process->GetExitStatus())
   {
