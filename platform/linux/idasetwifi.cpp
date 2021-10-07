@@ -128,26 +128,14 @@ int main(int argc, char *argv[])
     return(HR);
   }
 
-  uint8_vector standardError;
   unique_ptr<Process> process;
 
   // should be ready to go... load it into the system
-  process = Process::Execute("/usr/sbin/wpa_cli", Redirect::StandardError, "wpa_cli", "-i", "wlan0", "reconfigure");
+  process = Process::Execute("/usr/sbin/wpa_cli", Redirect::None, "wpa_cli", "-i", "wlan0", "reconfigure");
 
-  process->ExchangeStandardIo(nullptr, nullptr, &standardError);
   process->Wait();
 
-  if (standardError.size())
-  {
-    cerr << AsciiEncoder::Decode(standardError);
-
-    if (standardError.back() != '\n')
-    {
-      cerr << endl;
-    }
-  }
-
-  if(process->GetExitStatus())
+  if (process->GetExitStatus())
   {
     // ok, problem - something didn't work. let's try to backout
     int HRX = rename(conf_backup_name.c_str(), conf_name.c_str());
