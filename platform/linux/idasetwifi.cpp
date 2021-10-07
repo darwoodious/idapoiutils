@@ -8,7 +8,9 @@
 #include <vector>
 
 #include "Types.h"
+#include "AsciiEncoder.h"
 #include "HexConverter.h"
+#include "Process.h"
 
 using namespace std;
 using namespace Sequent;
@@ -21,11 +23,9 @@ int main(int argc, char *argv[])
 {
   // filenames and stuff
   string prefix("/etc/wpa_supplicant/");
-//  const string prefix("/tmp/");
   const string conf_name = prefix + "wpa_supplicant.conf";
   const string conf_swap_name = prefix + "wpa_supplicant.swap";
   const string conf_backup_name = prefix + "wpa_supplicant.conf." + to_string(getpid());
-  const string wpi_command("/usr/sbin/wpa_cli -i wlan0 reconfigure");
   int HR=0;
   uint8_t byteCount;
 
@@ -128,10 +128,14 @@ int main(int argc, char *argv[])
     return(HR);
   }
 
-  // should be ready to go... load it into the system
-  HR = system(wpi_command.c_str());
+  unique_ptr<Process> process;
 
-  if(HR) 
+  // should be ready to go... load it into the system
+  process = Process::Execute("/usr/sbin/wpa_cli", Redirect::None, "wpa_cli", "-i", "wlan0", "reconfigure");
+
+  process->Wait();
+
+  if (process->GetExitStatus())
   {
     // ok, problem - something didn't work. let's try to backout
     int HRX = rename(conf_backup_name.c_str(), conf_name.c_str());

@@ -2,7 +2,6 @@
 #include <vector>
 #include <string>
 
-#include "Types.h"
 #include "ArgumentOutOfRangeException.h"
 
 #include "HexConverter.h"
@@ -117,4 +116,3 @@ namespace HexConverter
     }
 }
 }
-
