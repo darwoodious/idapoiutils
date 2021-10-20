@@ -1,14 +1,10 @@
-#include <sys/types.h>
 #include <unistd.h>
-#include <stdlib.h>
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <cstring>
 #include <vector>
 
 #include "Types.h"
-#include "AsciiEncoder.h"
 #include "HexConverter.h"
 #include "Process.h"
 
@@ -158,9 +154,7 @@ int main(int argc, char *argv[])
 
   process->Wait();
 
-cerr << "exit: " << process->GetExitStatus() << endl;
-
-//if (false)
+  // wpa_cli never seems to return a non-zero status, so this block is likely useless.
   if (process->GetExitStatus())
   {
     cerr << "wifi activation failed; attempting configuration restore..." << endl;
@@ -175,7 +169,7 @@ cerr << "exit: " << process->GetExitStatus() << endl;
     }
   }
 
-  //cleanup and leave
+  // cleanup and leave
   remove(conf_swap_name.c_str());
 
   return(HR);
