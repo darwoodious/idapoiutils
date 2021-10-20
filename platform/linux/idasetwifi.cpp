@@ -17,7 +17,8 @@ using namespace Sequent;
 
 uint8_t ReadByte(FILE *stream);
 void ReadExact(uint8_t *buffer , size_t count, FILE *stream);
-string BinaryToAsciiOrHex(uint8_vector &binary, bool &isAscii);
+string BinarySsidToAsciiOrHex(uint8_vector &binary, bool &isAscii);
+string BinaryPasswordToString(uint8_vector &binary);
 
 int main(int argc, char *argv[])
 {
@@ -70,7 +71,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  if (byteCount > 100)
+  if (byteCount < 8 || byteCount > 63)
   {
     cerr << "Password byte count invalid" << endl;
     return 1;
@@ -90,22 +91,44 @@ int main(int argc, char *argv[])
   }
 
   bool ssidIsAscii;
-  string ssidAscii = BinaryToAsciiOrHex(ssid, ssidIsAscii);
-  bool passwordIsAscii;
-  string passwordAscii = BinaryToAsciiOrHex(password, passwordIsAscii);
+  string ssidAscii = BinarySsidToAsciiOrHex(ssid, ssidIsAscii);
+  string passwordString;
+
+  try
+  {
+    passwordString = BinaryPasswordToString(password);
+  }
+  catch (const char *e)
+  {
+    cerr << "Failed to convert password to string value" << endl;
+    cerr << "  " << e << endl;
+    return 1;
+  }
 
   // let's be root
   setuid(0);
 
   // create new wpa_supplicant.conf file
   ofstream conf_file(conf_swap_name, ofstream::out);
+
   conf_file << "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev" << endl
             << "update_config=1" << endl
             << "country=US" << endl << endl
             << "network={" << endl
-            << "\tssid=" << (ssidIsAscii ? "\"" : "") << ssidAscii << (ssidIsAscii ? "\"" : "") << endl
-            << "\tpsk=" << (passwordIsAscii ? "\"" : "") << passwordAscii << (passwordIsAscii ? "\"" : "") << endl
-            << "}" << endl;
+            << "\tssid=" << (ssidIsAscii ? "\"" : "") << ssidAscii << (ssidIsAscii ? "\"" : "") << endl;
+
+  if (password.size())
+  {
+    conf_file << "\tpsk=\"" << passwordString << "\"" << endl
+              << "\tkey_mgmt=WPA-PSK" << endl;
+  }
+  else
+  {
+    conf_file << "\tkey_mgmt=NONE" << endl;
+  }
+
+  conf_file << "}" << endl;
+
   conf_file.close();
 
   if(access(conf_name.c_str(), F_OK) == 0) {
@@ -135,20 +158,20 @@ int main(int argc, char *argv[])
 
   process->Wait();
 
+cerr << "exit: " << process->GetExitStatus() << endl;
+
+//if (false)
   if (process->GetExitStatus())
   {
+    cerr << "wifi activation failed; attempting configuration restore..." << endl;
+
     // ok, problem - something didn't work. let's try to backout
     int HRX = rename(conf_backup_name.c_str(), conf_name.c_str());
 
     // need to return initial error from the wpi command. our STDERR response will depend on the backout too.
     if(HRX)
     {
-      cerr << "activating new wifi failed. also, the restore failed." << endl;
-    }
-    else
-    {
-      // backout should have worked...
-      cerr << "activating new wifi failed. restored to original value." << endl;
+      cerr << "restore failed." << endl;
     }
   }
 
@@ -193,7 +216,7 @@ void ReadExact(uint8_t *buffer, size_t count, FILE *stream)
   }
 }
 
-string BinaryToAsciiOrHex(uint8_vector &binary, bool &isAscii)
+string BinarySsidToAsciiOrHex(uint8_vector &binary, bool &isAscii)
 {
   string string;
 
@@ -218,4 +241,21 @@ string BinaryToAsciiOrHex(uint8_vector &binary, bool &isAscii)
   {
     return HexConverter::ByteArrayToHexString(binary);
   }
+}
+
+string BinaryPasswordToString(uint8_vector &binary)
+{
+  string string;
+
+  for (uint8_vector::const_iterator it = binary.cbegin(); it != binary.cend(); ++it)
+  {
+    if (*it == '\n')
+    {
+      throw "Newline character not supported in WPA passwords";
+    }
+
+    string += (char) *it;
+  }
+
+  return string;
 }
