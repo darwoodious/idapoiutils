@@ -35,3 +35,8 @@ idasetwifitest: idasetwifitest.o AsciiEncoder.o Pipe.o Process.o
 clean:
 	rm -f *.o idagetssids idasetwifi idasetwifitest
 
+install: idagetssids idasetwifi
+	cp idagetssids idasetwifi /usr/local/sbin
+	./setuid.sh /usr/local/sbin/idagetssids
+	./setuid.sh /usr/local/sbin/idasetwifi
+
