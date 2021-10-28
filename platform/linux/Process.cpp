@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <poll.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #include "Types.h"
 #include "Pipe.h"
